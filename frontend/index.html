@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETL Workflow Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9.3.0/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --warning: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --light-gray: #e9ecef;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fb;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+        
+        header h1 {
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .app-content {
+            display: flex;
+            min-height: 600px;
+        }
+        
+        .input-section {
+            flex: 1;
+            padding: 25px;
+            background: var(--light);
+            border-right: 1px solid var(--light-gray);
+        }
+        
+        .output-section {
+            flex: 1;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: var(--secondary);
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+        }
+        
+        textarea, input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid var(--light-gray);
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: 600;
+            padding: 14px;
+        }
+        
+        button:hover {
+            background-color: var(--secondary);
+        }
+        
+        button.secondary {
+            background-color: var(--gray);
+        }
+        
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        .file-upload {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 2px dashed var(--light-gray);
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .preview-container {
+            flex: 1;
+            border: 1px solid var(--light-gray);
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: white;
+            overflow: auto;
+        }
+        
+        .output-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .output-actions button {
+            flex: 1;
+        }
+        
+        .status-container {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background: var(--light);
+        }
+        
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+        
+        .status-content {
+            min-height: 60px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid var(--light-gray);
+        }
+        
+        .success {
+            color: #28a745;
+        }
+        
+        .error {
+            color: #dc3545;
+        }
+        
+        .warning {
+            color: #ffc107;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: var(--light-gray);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        #dagPreview {
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-style: italic;
+            color: var(--gray);
+        }
+        
+        #configOutput {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .tab-navigation {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        
+        .tab-button {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            background: var(--light);
+            cursor: pointer;
+            border: 1px solid var(--light-gray);
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+        
+        .tab-button.active {
+            background: var(--primary);
+            color: white;
+            border-bottom: none;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--light-gray);
+        }
+        
+        .data-preview {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow: auto;
+        }
+        
+        .data-preview table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-preview th, .data-preview td {
+            border: 1px solid var(--light-gray);
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .data-preview th {
+            background-color: var(--light);
+        }
+        
+        @media (max-width: 900px) {
+            .app-content {
+                flex-direction: column;
+            }
+            
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid var(--light-gray);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Prompt-Based ETL Workflow Generator</h1>
+            <p>Describe your workflow in plain text and generate ETL configuration files</p>
+        </header>
+        
+        <div class="app-content">
+            <div class="input-section">
+                <h2 class="section-title">Input</h2>
+                
+                <div class="file-upload">
+                    <p>Upload Source Data (CSV/Excel)</p>
+                    <input type="file" id="fileUpload" accept=".csv,.xlsx,.xls">
+                    <div class="data-preview" id="dataPreview"></div>
+                </div>
+                
+                <div>
+                    <label for="workflowPrompt">Describe your ETL workflow:</label>
+                    <textarea id="workflowPrompt" placeholder="Example: Extract customer data from CSV, transform by calculating lifetime value, and load to customer table in database..."></textarea>
+                </div>
+                
+                <div>
+                    <label for="targetFormat">Target Format:</label>
+                    <select id="targetFormat">
+                        <option value="json">JSON</option>
+                        <option value="yaml">YAML</option>
+                    </select>
+                </div>
+                
+                <button id="generateBtn">Generate ETL Configuration</button>
+                <button id="resetBtn" class="secondary">Reset</button>
+            </div>
+            
+            <div class="output-section">
+                <h2 class="section-title">Output</h2>
+                
+                <div class="tab-navigation">
+                    <div class="tab-button active" data-tab="preview">Workflow Preview</div>
+                    <div class="tab-button" data-tab="config">Configuration</div>
+                    <div class="tab-button" data-tab="data">Transformed Data</div>
+                </div>
+                
+                <div class="tab-content active" id="previewTab">
+                    <div class="preview-container">
+                        <div id="dagPreview">Workflow preview will appear here</div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="configTab">
+                    <div class="preview-container">
+                        <pre id="configOutput">Configuration will appear here</pre>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="dataTab">
+                    <div class="preview-container">
+                        <div id="transformedData">Transformed data will appear here</div>
+                    </div>
+                </div>
+                
+                <div class="output-actions">
+                    <button id="downloadConfigBtn" class="secondary" disabled>Download Config</button>
+                    <button id="downloadDataBtn" class="secondary" disabled>Download Transformed Data</button>
+                </div>
+                
+                <div class="status-container">
+                    <div class="status-title">Status</div>
+                    <div class="status-content" id="statusMessage">Ready to generate ETL workflow</div>
+                    <div class="progress-bar">
+                        <div class="progress" id="progressBar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Prompt-Based ETL Workflow Generator | Designed BY GOKUL CAP STONE PROJECT</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize mermaid for diagram rendering
+            mermaid.initialize({ startOnLoad: true, theme: 'default' });
+            
+            // DOM Elements
+            const workflowPrompt = document.getElementById('workflowPrompt');
+            const fileUpload = document.getElementById('fileUpload');
+            const targetFormat = document.getElementById('targetFormat');
+            const generateBtn = document.getElementById('generateBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const dagPreview = document.getElementById('dagPreview');
+            const configOutput = document.getElementById('configOutput');
+            const downloadConfigBtn = document.getElementById('downloadConfigBtn');
+            const downloadDataBtn = document.getElementById('downloadDataBtn');
+            const statusMessage = document.getElementById('statusMessage');
+            const progressBar = document.getElementById('progressBar');
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const dataPreview = document.getElementById('dataPreview');
+            const transformedData = document.getElementById('transformedData');
+            
+            // Store uploaded and transformed data
+            let uploadedData = null;
+            let processedData = null;
+            
+            // Sample workflow examples for user inspiration
+            const examples = [
+                "Extract sales data from CSV, transform by calculating monthly totals, and load to database",
+                "Read customer records, clean phone numbers and addresses, output to CSV with standardized format",
+                "Process order data, join with product information, calculate revenue by category, export to Excel"
+            ];
+            
+            // Set a random example as placeholder
+            workflowPrompt.placeholder = "Example: " + examples[Math.floor(Math.random() * examples.length)];
+            
+            // Handle file upload
+            fileUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                updateStatus('Reading uploaded file...', 'warning');
+                
+                const extension = file.name.split('.').pop().toLowerCase();
+                
+                if (extension === 'csv') {
+                    parseCSV(file);
+                } else if (['xlsx', 'xls'].includes(extension)) {
+                    parseExcel(file);
+                } else {
+                    updateStatus('Unsupported file format. Please upload CSV or Excel files.', 'error');
+                }
+            });
+            
+            // Tab navigation
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tab = button.getAttribute('data-tab');
+                    
+                    // Update active tab button
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // Update active tab content
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(`${tab}Tab`).classList.add('active');
+                });
+            });
+            
+            // Generate ETL configuration
+            generateBtn.addEventListener('click', async () => {
+                const prompt = workflowPrompt.value.trim();
+                
+                if (!prompt) {
+                    updateStatus('Please describe your workflow', 'error');
+                    return;
+                }
+                
+                updateStatus('Processing your request...', 'warning');
+                setProgress(20);
+                
+                try {
+                    // Simulate processing time
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    // Generate configuration based on prompt
+                    const format = targetFormat.value;
+                    const config = generateConfig(prompt, format);
+                    
+                    // Update configuration output
+                    configOutput.textContent = config;
+                    
+                    // Generate and render workflow diagram
+                    const diagram = generateDiagram(prompt);
+                    dagPreview.innerHTML = `<div class="mermaid">${diagram}</div>`;
+                    
+                    // Re-render mermaid diagram
+                    mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    
+                    setProgress(60);
+                    updateStatus('Transforming data...', 'warning');
+                    
+                    // Process data based on the prompt
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    processData(prompt);
+                    
+                    setProgress(100);
+                    updateStatus('ETL workflow generated successfully!', 'success');
+                    
+                    // Enable download buttons
+                    downloadConfigBtn.disabled = false;
+                    downloadDataBtn.disabled = false;
+                    
+                } catch (error) {
+                    console.error('Error generating ETL config:', error);
+                    updateStatus('Error generating configuration: ' + error.message, 'error');
+                }
+            });
+            
+            // Reset form
+            resetBtn.addEventListener('click', () => {
+                workflowPrompt.value = '';
+                fileUpload.value = '';
+                configOutput.textContent = 'Configuration will appear here';
+                dagPreview.innerHTML = 'Workflow preview will appear here';
+                transformedData.innerHTML = 'Transformed data will appear here';
+                dataPreview.innerHTML = '';
+                updateStatus('Ready to generate ETL workflow');
+                setProgress(0);
+                downloadConfigBtn.disabled = true;
+                downloadDataBtn.disabled = true;
+                uploadedData = null;
+                processedData = null;
+                
+                // Reset active tab to preview
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                tabButtons[0].classList.add('active');
+                tabContents[0].classList.add('active');
+            });
+            
+            // Download configuration
+            downloadConfigBtn.addEventListener('click', () => {
+                const format = targetFormat.value;
+                const config = configOutput.textContent;
+                const blob = new Blob([config], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `etl-config.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                updateStatus('Configuration downloaded', 'success');
+            });
+            
+            // Download transformed data
+            downloadDataBtn.addEventListener('click', () => {
+                if (!processedData || processedData.length === 0) {
+                    updateStatus('No data available to download', 'error');
+                    return;
+                }
+                
+                // Convert processed data to CSV
+                const csv = Papa.unparse(processedData);
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transformed-data.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                updateStatus('Transformed data downloaded', 'success');
+            });
+            
+            // Helper functions
+            function updateStatus(message, type = '') {
+                statusMessage.textContent = message;
+                statusMessage.className = 'status-content';
+                if (type) {
+                    statusMessage.classList.add(type);
+                }
+            }
+            
+            function setProgress(percent) {
+                progressBar.style.width = percent + '%';
+            }
+            
+            function parseCSV(file) {
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true,
+                    complete: function(results) {
+                        if (results.errors.length > 0) {
+                            updateStatus('Error parsing CSV: ' + results.errors[0].message, 'error');
+                            return;
+                        }
+                        
+                        uploadedData = results.data;
+                        displayDataPreview(uploadedData);
+                        updateStatus('CSV file uploaded successfully. ' + uploadedData.length + ' records found.', 'success');
+                    },
+                    error: function(error) {
+                        updateStatus('Error reading CSV file: ' + error.message, 'error');
+                    }
+                });
+            }
+            
+            function parseExcel(file) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        
+                        if (jsonData.length < 2) {
+                            updateStatus('Excel file is empty or has no data', 'error');
+                            return;
+                        }
+                        
+                        // Convert to object array with headers
+                        const headers = jsonData[0];
+                        const objData = [];
+                        
+                        for (let i = 1; i < jsonData.length; i++) {
+                            const row = jsonData[i];
+                            const obj = {};
+                            
+                            for (let j = 0; j < headers.length; j++) {
+                                if (j < row.length) {
+                                    obj[headers[j]] = row[j];
+                                } else {
+                                    obj[headers[j]] = null;
+                                }
+                            }
+                            
+                            objData.push(obj);
+                        }
+                        
+                        uploadedData = objData;
+                        displayDataPreview(uploadedData);
+                        updateStatus('Excel file uploaded successfully. ' + uploadedData.length + ' records found.', 'success');
+                    } catch (error) {
+                        updateStatus('Error parsing Excel file: ' + error.message, 'error');
+                    }
+                };
+                
+                reader.onerror = function() {
+                    updateStatus('Error reading Excel file', 'error');
+                };
+                
+                reader.readAsArrayBuffer(file);
+            }
+            
+            function displayDataPreview(data) {
+                if (!data || data.length === 0) {
+                    dataPreview.innerHTML = 'No data to display';
+                    return;
+                }
+                
+                let tableHtml = '<p>Data Preview (' + data.length + ' rows):</p>';
+                tableHtml += '<table><thead><tr>';
+                
+                // Create headers
+                const headers = Object.keys(data[0]);
+                headers.forEach(header => {
+                    tableHtml += '<th>' + header + '</th>';
+                });
+                
+                tableHtml += '</tr></thead><tbody>';
+                
+                // Create rows (limit to 5 for preview)
+                for (let i = 0; i < Math.min(5, data.length); i++) {
+                    tableHtml += '<tr>';
+                    headers.forEach(header => {
+                        tableHtml += '<td>' + (data[i][header] !== null ? data[i][header] : '') + '</td>';
+                    });
+                    tableHtml += '</tr>';
+                }
+                
+                tableHtml += '</tbody></table>';
+                
+                if (data.length > 5) {
+                    tableHtml += '<p>... and ' + (data.length - 5) + ' more rows</p>';
+                }
+                
+                dataPreview.innerHTML = tableHtml;
+            }
+            
+            function processData(prompt) {
+                if (!uploadedData || uploadedData.length === 0) {
+                    transformedData.innerHTML = 'No data available for transformation';
+                    return;
+                }
+                
+                // Apply transformations based on the prompt
+                processedData = JSON.parse(JSON.stringify(uploadedData)); // Deep copy
+                
+                // Simple transformation examples based on prompt content
+                if (prompt.toLowerCase().includes('calculate') || prompt.toLowerCase().includes('total')) {
+                    // Add a calculated total column if we have numeric fields
+                    const numericFields = findNumericFields(processedData[0]);
+                    
+                    if (numericFields.length > 0) {
+                        processedData.forEach(row => {
+                            let total = 0;
+                            numericFields.forEach(field => {
+                                if (typeof row[field] === 'number') {
+                                    total += row[field];
+                                }
+                            });
+                            row['Total'] = total;
+                        });
+                    }
+                }
+                
+                if (prompt.toLowerCase().includes('clean') || prompt.toLowerCase().includes('standardize')) {
+                    // Clean string fields by trimming and capitalizing first letter
+                    processedData.forEach(row => {
+                        for (const key in row) {
+                            if (typeof row[key] === 'string') {
+                                row[key] = row[key].trim();
+                                if (row[key].length > 0) {
+                                    row[key] = row[key].charAt(0).toUpperCase() + row[key].slice(1);
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                if (prompt.toLowerCase().includes('categor') || prompt.toLowerCase().includes('group')) {
+                    // Add a category field based on values
+                    const stringFields = findStringFields(processedData[0]);
+                    
+                    if (stringFields.length > 0) {
+                        const field = stringFields[0];
+                        processedData.forEach(row => {
+                            if (row[field] && typeof row[field] === 'string') {
+                                const firstChar = row[field].charAt(0).toUpperCase();
+                                if (firstChar >= 'A' && firstChar <= 'G') {
+                                    row['Category'] = 'A-G';
+                                } else if (firstChar >= 'H' && firstChar <= 'N') {
+                                    row['Category'] = 'H-N';
+                                } else if (firstChar >= 'O' && firstChar <= 'U') {
+                                    row['Category'] = 'O-U';
+                                } else {
+                                    row['Category'] = 'V-Z';
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                // Display transformed data
+                displayTransformedData(processedData);
+            }
+            
+            function findNumericFields(row) {
+                const numericFields = [];
+                for (const key in row) {
+                    if (typeof row[key] === 'number') {
+                        numericFields.push(key);
+                    }
+                }
+                return numericFields;
+            }
+            
+            function findStringFields(row) {
+                const stringFields = [];
+                for (const key in row) {
+                    if (typeof row[key] === 'string') {
+                        stringFields.push(key);
+                    }
+                }
+                return stringFields;
+            }
+            
+            function displayTransformedData(data) {
+                if (!data || data.length === 0) {
+                    transformedData.innerHTML = 'No transformed data to display';
+                    return;
+                }
+                
+                let tableHtml = '<p>Transformed Data (' + data.length + ' rows):</p>';
+                tableHtml += '<table><thead><tr>';
+                
+                // Create headers
+                const headers = Object.keys(data[0]);
+                headers.forEach(header => {
+                    tableHtml += '<th>' + header + '</th>';
+                });
+                
+                tableHtml += '</tr></thead><tbody>';
+                
+                // Create rows (limit to 10 for preview)
+                for (let i = 0; i < Math.min(10, data.length); i++) {
+                    tableHtml += '<tr>';
+                    headers.forEach(header => {
+                        tableHtml += '<td>' + (data[i][header] !== null ? data[i][header] : '') + '</td>';
+                    });
+                    tableHtml += '</tr>';
+                }
+                
+                tableHtml += '</tbody></table>';
+                
+                if (data.length > 10) {
+                    tableHtml += '<p>... and ' + (data.length - 10) + ' more rows</p>';
+                }
+                
+                transformedData.innerHTML = tableHtml;
+            }
+            
+            function generateConfig(prompt, format) {
+                // Extract key elements from the prompt
+                const steps = prompt.split(/,|and|then/).filter(step => step.trim().length > 0);
+                
+                if (format === 'json') {
+                    return JSON.stringify({
+                        workflow: {
+                            name: "Generated from prompt",
+                            description: prompt,
+                            steps: steps.map((step, index) => ({
+                                id: index + 1,
+                                name: `Step ${index + 1}`,
+                                description: step.trim(),
+                                action: determineAction(step.trim())
+                            }))
+                        },
+                        created: new Date().toISOString(),
+                        version: "1.0"
+                    }, null, 2);
+                } else {
+                    return `# ETL Workflow Configuration
+name: Generated from prompt
+description: ${prompt}
+created: ${new Date().toISOString()}
+version: "1.0"
+
+steps:
+${steps.map((step, index) => `  - id: ${index + 1}
+    name: Step ${index + 1}
+    description: ${step.trim()}
+    action: ${determineAction(step.trim())}`).join('\n')}`;
+                }
+            }
+            
+            function determineAction(step) {
+                step = step.toLowerCase();
+                if (step.includes('extract') || step.includes('read') || step.includes('import')) return 'extract';
+                if (step.includes('transform') || step.includes('clean') || step.includes('calculate')) return 'transform';
+                if (step.includes('load') || step.includes('write') || step.includes('export')) return 'load';
+                return 'unknown';
+            }
+            
+            function generateDiagram(prompt) {
+                // Extract steps from prompt
+                const steps = prompt.split(/,|and|then/).filter(step => step.trim().length > 0);
+                
+                // Create a simple flowchart based on the steps
+                let diagram = "graph TD\n";
+                diagram += "    Start-->Step1;\n";
+                
+                steps.forEach((step, index) => {
+                    const stepNum = index + 1;
+                    const nextStep = stepNum + 1;
+                    const actionType = determineAction(step.trim());
+                    
+                    let style = "";
+                    if (actionType === 'extract') style = "fill:#e1f5fe";
+                    if (actionType === 'transform') style = "fill:#f3e5f5";
+                    if (actionType === 'load') style = "fill:#e8f5e9";
+                    
+                    diagram += `    Step${stepNum}[${step.trim()}]${style ? `:::${actionType}` : ''};\n`;
+                    
+                    if (index < steps.length - 1) {
+                        diagram += `    Step${stepNum}-->Step${nextStep};\n`;
+                    } else {
+                        diagram += `    Step${stepNum}-->Finish;\n`;
+                    }
+                });
+                
+                diagram += "    Finish[Finish];\n";
+                
+                // Add style classes
+                if (prompt.includes('extract') || prompt.includes('read') || prompt.includes('import')) {
+                    diagram += "    classDef extract fill:#e1f5fe,stroke:#01579b;\n";
+                }
+                if (prompt.includes('transform') || prompt.includes('clean') || prompt.includes('calculate')) {
+                    diagram += "    classDef transform fill:#f3e5f5,stroke:#4a148c;\n";
+                }
+                if (prompt.includes('load') || prompt.includes('write') || prompt.includes('export')) {
+                    diagram += "    classDef load fill:#e8f5e9,stroke:#1b5e20;\n";
+                }
+                
+                return diagram;
+            }
+        });
+    </script>
+</body>
+</html>
