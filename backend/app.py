@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form
+from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -7,6 +7,7 @@ import io, os
 from utils.etl_parser import generate_config, generate_dag
 from utils.transformer import transform_data
 from utils.openai_helper import get_smart_fix
+
 
 app = FastAPI()
 
@@ -32,26 +33,43 @@ async def generate_workflow(
     target_format: str = Form("json"),
     file: UploadFile = None
 ):
-    df = None
-    if file:
-        content = await file.read()
-        if file.filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(content))
-        elif file.filename.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(io.BytesIO(content))
+    try:
+        df = None
+        if file:
+            content = await file.read()
+            if file.filename.endswith(".csv"):
+                df = pd.read_csv(io.BytesIO(content))
+            elif file.filename.endswith((".xlsx", ".xls")):
+                df = pd.read_excel(io.BytesIO(content))
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported file format")
 
-    config = generate_config(prompt, target_format)
-    dag = generate_dag(prompt)
-    transformed = transform_data(df, prompt) if df is not None else None
+        # Generate configuration in backend
+        config = generate_config(prompt, target_format)
+        
+        # Generate DAG diagram
+        dag = generate_dag(prompt)
+        
+        # Transform data if file provided
+        transformed = None
+        if df is not None:
+            transformed = transform_data(df, prompt)
 
-    return {
-        "config": config,
-        "dag": dag,
-        "transformed_data": transformed.to_dict(orient="records") if transformed is not None else []
-    }
+        return {
+            "success": True,
+            "config": config,
+            "dag": dag,
+            "transformed_data": transformed.to_dict(orient="records") if transformed is not None else [],
+            "original_data": df.to_dict(orient="records") if df is not None else []
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing workflow: {str(e)}")
 
 @app.post("/smart-fix")
 async def smart_fix(error_message: str = Form(...)):
-    suggestion = get_smart_fix(error_message)
-    return {"fix_suggestion": suggestion}
-
+    try:
+        suggestion = get_smart_fix(error_message)
+        return {"success": True, "fix_suggestion": suggestion}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to generate fix: {str(e)}"}
