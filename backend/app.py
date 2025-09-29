@@ -6,8 +6,7 @@ import pandas as pd
 import io, os
 from utils.etl_parser import generate_config, generate_dag
 from utils.transformer import transform_data
-from utils.openai_helper import get_smart_fix
-
+from utils.openai_helper import get_smart_fix, generate_config_with_ai, get_transformation_suggestions
 
 app = FastAPI()
 
@@ -31,7 +30,8 @@ def root():
 async def generate_workflow(
     prompt: str = Form(...),
     target_format: str = Form("json"),
-    file: UploadFile = None
+    file: UploadFile = None,
+    use_ai: bool = Form(False)
 ):
     try:
         df = None
@@ -45,22 +45,34 @@ async def generate_workflow(
                 raise HTTPException(status_code=400, detail="Unsupported file format")
 
         # Generate configuration in backend
-        config = generate_config(prompt, target_format)
+        if use_ai:
+            config = generate_config_with_ai(prompt, target_format)
+        else:
+            config = generate_config(prompt, target_format)
         
         # Generate DAG diagram
         dag = generate_dag(prompt)
         
-        # Transform data if file provided
+       # Transform data if file provided
         transformed = None
         if df is not None:
             transformed = transform_data(df, prompt)
+
+        # Initialize AI suggestions
+        ai_suggestions = None
+        
+        # Get AI transformation suggestions if available
+        if use_ai and df is not None:
+            ai_suggestions = get_transformation_suggestions(df.columns.tolist(), prompt)
 
         return {
             "success": True,
             "config": config,
             "dag": dag,
             "transformed_data": transformed.to_dict(orient="records") if transformed is not None else [],
-            "original_data": df.to_dict(orient="records") if df is not None else []
+            "original_data": df.to_dict(orient="records") if df is not None else [],
+            "ai_suggestions": ai_suggestions,
+            "ai_used": use_ai
         }
     
     except Exception as e:
@@ -73,3 +85,4 @@ async def smart_fix(error_message: str = Form(...)):
         return {"success": True, "fix_suggestion": suggestion}
     except Exception as e:
         return {"success": False, "error": f"Failed to generate fix: {str(e)}"}
+

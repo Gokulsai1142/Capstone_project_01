@@ -648,7 +648,16 @@
                         <option value="yaml">YAML Configuration</option>
                     </select>
                 </div>
-                
+                <!-- AI Integration Toggle -->
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="useAI" style="width: auto; transform: scale(1.2);">
+                        🤖 Use AI for Enhanced Processing
+                    </label>
+                    <small style="color: var(--gray); margin-top: 8px; display: block;">
+                        💡 <strong>AI Mode:</strong> Uses GPT-4 for better natural language understanding. Falls back to regex if unavailable.
+                    </small>
+                </div>
                 <!-- Action Buttons -->
                 <div class="btn-group">
                     <button id="generateBtn" class="btn btn-primary">
@@ -658,8 +667,7 @@
                         🔄 Reset Form
                     </button>
                 </div>
-                
-                <!-- Status Section -->
+                 <!-- Status Section -->
                 <div class="status-section">
                     <div class="status-title">⚡ Processing Status</div>
                     <div class="status-content" id="statusMessage">
@@ -794,6 +802,7 @@ Go to the Input page and generate your ETL workflow to see the configuration fil
                     fileUpload: document.getElementById('fileUpload'),
                     fileUploadArea: document.getElementById('fileUploadArea'),
                     targetFormat: document.getElementById('targetFormat'),
+                    useAI: document.getElementById('useAI'),
                     generateBtn: document.getElementById('generateBtn'),
                     resetBtn: document.getElementById('resetBtn'),
                     dataPreview: document.getElementById('dataPreview'),
@@ -1037,7 +1046,11 @@ Go to the Input page and generate your ETL workflow to see the configuration fil
                     } else {
                         this.elements.transformedData.innerHTML = '<div class="empty-state"><h3>No data transformations applied</h3><p>No data was uploaded or no transformations were needed.</p></div>';
                     }
-
+                    // Show AI suggestions if available
+                    if (result.ai_suggestions && result.ai_used) {
+                        console.log('AI Suggestions:', result.ai_suggestions);
+                        this.showNotification(`AI Enhanced Processing: ${result.ai_suggestions.substring(0, 50)}...`, 'success');
+                    }
                     this.setProgress(100);
                     this.updateStatus('ETL workflow generated successfully!', 'success');
                     this.showNotification('Workflow generated successfully!', 'success');
@@ -1204,6 +1217,7 @@ Go to the Input page and generate your ETL workflow to see the configuration fil
                 this.elements.workflowPrompt.value = '';
                 this.elements.fileUpload.value = '';
                 this.elements.targetFormat.value = 'json';
+                this.elements.useAI.checked = false;
                 
                 // Reset output areas
                 this.elements.configOutput.textContent = 'No configuration generated yet.\n\nGo to the Input page and generate your ETL workflow to see the configuration file here.';
